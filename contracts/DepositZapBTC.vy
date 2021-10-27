@@ -189,17 +189,16 @@ def remove_liquidity_one_coin(
     @return Amount of underlying coin received
     """
     ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
-
+    coin: address = CurveMeta(_pool).coins(convert(i, uint256))
     coin_amount: uint256 = 0
+    coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, _receiver)
+
     if i == 0:
-        coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, _receiver)
+        before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(coin_amount)
+        after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
+        ERC20(IBBTC_TOKEN).transfer(_receiver, after_ibbtc_balance - before_ibbtc_balance)
     else:
-        base_coins: address[BASE_N_COINS] = BASE_COINS
-        coin: address = base_coins[i - MAX_COIN]
-        # Withdraw a base pool coin
-        coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, MAX_COIN, 0, self)
-        CurveBase(BASE_POOL).remove_liquidity_one_coin(coin_amount, i-MAX_COIN, _min_amount)
-        coin_amount = ERC20(coin).balanceOf(self)
         ERC20(coin).transfer(_receiver, coin_amount)
 
     return coin_amount
@@ -283,16 +282,13 @@ def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) ->
     @param i Index value of the underlying coin to withdraw
     @return Amount of coin received
     """
-    if i < MAX_COIN:
-        return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i)
-    else:
-        _base_tokens: uint256 = CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, MAX_COIN)
-        return CurveBase(BASE_POOL).calc_withdraw_one_coin(_base_tokens, i-MAX_COIN)
+    
+    return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i) # NOTE: as ibbtc to wibbtc is 1:1 this becomes a simple return
 
 
 @view
 @external
-def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposit: bool) -> uint256:
+def calc_token_amount(_pool: address, _amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
     """
     @notice Calculate addition or reduction in token supply from a deposit or withdrawal
     @dev This calculation accounts for slippage, but not fees.
@@ -302,14 +298,5 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposi
     @param _is_deposit set True for deposits, False for withdrawals
     @return Expected amount of LP tokens received
     """
-    meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
-    base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
 
-    meta_amounts[0] = _amounts[0]
-    for i in range(BASE_N_COINS):
-        base_amounts[i] = _amounts[i + MAX_COIN]
-
-    base_tokens: uint256 = CurveBase(BASE_POOL).calc_token_amount(base_amounts, _is_deposit)
-    meta_amounts[MAX_COIN] = base_tokens
-
-    return CurveMeta(_pool).calc_token_amount(meta_amounts, _is_deposit)
+    return CurveMeta(_pool).calc_token_amount(_amounts, _is_deposit)
