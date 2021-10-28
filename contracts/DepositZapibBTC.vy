@@ -1,7 +1,8 @@
 # @version 0.2.16
 """
-@title "Zap" Depositer for wibbtc <> sbtc curve pool
+@title "Zap" Depositer for permissionless ibBTC metapools
 @author tabish@badger.finance
+@license Copyright (c) Curve.Fi, 2021 - all rights reserved
 """
 
 # using this deposit zap users will be able to deposit ibbtc + whatever tokens are there in the metapool
@@ -22,24 +23,32 @@ interface CurveMeta:
     def calc_token_amount(amounts: uint256[N_COINS], deposit: bool) -> uint256: view
     def coins(i: uint256) -> address: view
 
-# interface CurveBase:
-#     def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
-#     def remove_liquidity(_amount: uint256, min_amounts: uint256[BASE_N_COINS]): nonpayable
-#     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
-#     def remove_liquidity_imbalance(amounts: uint256[BASE_N_COINS], max_burn_amount: uint256): nonpayable
-#     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
-#     def calc_token_amount(amounts: uint256[BASE_N_COINS], deposit: bool) -> uint256: view
-#     def coins(i: int128) -> address: view
-#     def fee() -> uint256: view
+interface CurveBase:
+    def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
+    def remove_liquidity(_amount: uint256, min_amounts: uint256[BASE_N_COINS]): nonpayable
+    def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
+    def remove_liquidity_imbalance(amounts: uint256[BASE_N_COINS], max_burn_amount: uint256): nonpayable
+    def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
+    def calc_token_amount(amounts: uint256[BASE_N_COINS], deposit: bool) -> uint256: view
+    def coins(i: int128) -> address: view
+    def fee() -> uint256: view
 
 interface WrappedIbbtcEth:
     def mint(_shares: uint256): nonpayable
     def burn(_shares: uint256): nonpayable
 
-N_COINS: constant(int128) = 2 # ibbtc and sbtc ... NOTE: change this accordingly
-# MAX_COIN: constant(int128) = N_COINS-1
-# BASE_N_COINS: constant(int128) = 3
-# N_ALL_COINS: constant(int128) = N_COINS - 1
+N_COINS: constant(int128) = 2 # wibbtc, crvRenWSBTC
+MAX_COIN: constant(int128) = N_COINS-1
+BASE_N_COINS: constant(int128) = 3
+N_ALL_COINS: constant(int128) = N_COINS + BASE_N_COINS - 1
+
+BASE_POOL: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
+BASE_LP_TOKEN: constant(address) = 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3
+BASE_COINS: constant(address[3]) = [
+    0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D,  # renBTC
+    0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599,  # wBTC
+    0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6,  # sBTC
+]
 
 FEE_DENOMINATOR: constant(uint256) = 10 ** 10
 FEE_IMPRECISION: constant(uint256) = 100 * 10 ** 8  # % of the fee
@@ -47,14 +56,6 @@ FEE_IMPRECISION: constant(uint256) = 100 * 10 ** 8  # % of the fee
 IBBTC_WRAPPER_PROXY: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714 # TODO: change this address to wrapper proxy deployed on mainnet
 WIBBTC_TOKEN: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714 # TODO: change this to wibbtc token address
 IBBTC_TOKEN: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714 # TODO: change this to ibbtc token address
-
-# BASE_POOL: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
-# BASE_LP_TOKEN: constant(address) = 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3
-# BASE_COINS: constant(address[3]) = [
-#     0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D,  # renBTC
-#     0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599,  # wBTC
-#     0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6,  # sBTC
-# ]
 
 # coin -> pool -> is approved to transfer?
 is_approved: HashMap[address, HashMap[address, bool]]
@@ -65,15 +66,15 @@ def __init__():
     """
     @notice Contract constructor
     """
-    # base_coins: address[3] = BASE_COINS
-    # for coin in base_coins:
-    #     ERC20(coin).approve(BASE_POOL, MAX_UINT256)
+    base_coins: address[3] = BASE_COINS
+    for coin in base_coins:
+        ERC20(coin).approve(BASE_POOL, MAX_UINT256)
 
 
 @external
 def add_liquidity(
     _pool: address,
-    _deposit_amounts: uint256[N_COINS],
+    _deposit_amounts: uint256[N_ALL_COINS],
     _min_mint_amount: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
@@ -86,9 +87,9 @@ def add_liquidity(
     @return Amount of LP tokens received by depositing
     """
     meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
-    # base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
-    # deposit_base: bool = False
-    # base_coins: address[3] = BASE_COINS
+    base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
+    deposit_base: bool = False
+    base_coins: address[3] = BASE_COINS
 
     # for ibbtc deposit
     if _deposit_amounts[0] != 0:
@@ -112,16 +113,29 @@ def add_liquidity(
             self.is_approved[wibbtc_coin][_pool] = True
 
     # for all coins(other than ibbtc/ wibbtc) do nothing, just approve them and transfer them
-    for i in range(1, N_COINS):
-        coin: address = CurveMeta(_pool).coins(i)
+    for i in range(1, N_ALL_COINS):
         amount: uint256 = _deposit_amounts[i]
         if amount == 0:
             continue
+        deposit_base = True
+        base_idx: uint256 = i - 1
+        coin: address = base_coins[base_idx]
+
+        ERC20(coin).transferFrom(msg.sender, self, amount)
+        # Handle potential Tether fees
+        if i == N_ALL_COINS - 1:
+            base_amounts[base_idx] = ERC20(coin).balanceOf(self)
+        else:
+            base_amounts[base_idx] = amount
+
+    # Deposit to the base pool
+    if deposit_base:
+        coin: address = BASE_LP_TOKEN
+        CurveBase(BASE_POOL).add_liquidity(base_amounts, 0)
+        meta_amounts[MAX_COIN] = ERC20(coin).balanceOf(self)
         if not self.is_approved[coin][_pool]:
             ERC20(coin).approve(_pool, MAX_UINT256)
             self.is_approved[coin][_pool] = True
-        ERC20(coin).transferFrom(msg.sender, self, amount)
-        meta_amounts[i] = amount
 
     # Deposit to the meta pool
     return CurveMeta(_pool).add_liquidity(meta_amounts, _min_mint_amount, _receiver)
@@ -131,9 +145,9 @@ def add_liquidity(
 def remove_liquidity(
     _pool: address,
     _burn_amount: uint256,
-    _min_amounts: uint256[N_COINS],
+    _min_amounts: uint256[N_ALL_COINS],
     _receiver: address = msg.sender
-) -> uint256[N_COINS]:
+) -> uint256[N_ALL_COINS]:
     """
     @notice Withdraw and unwrap coins from the pool
     @dev Withdrawal amounts are based on current deposit ratios
@@ -145,12 +159,13 @@ def remove_liquidity(
     """
     ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
 
-    amounts: uint256[N_COINS] = empty(uint256[N_COINS])
+    min_amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
+    amounts: uint256[N_ALL_COINS] = empty(uint256[N_ALL_COINS])
 
     # Withdraw from meta
     meta_received: uint256[N_COINS] = CurveMeta(_pool).remove_liquidity(
         _burn_amount,
-        _min_amounts
+        [_min_amounts[0], convert(0, uint256)]
     )
 
     # convert wibbtc to ibbtc
@@ -163,8 +178,14 @@ def remove_liquidity(
     amounts[0] = after_ibbtc_balance - before_ibbtc_balance
     ERC20(IBBTC_TOKEN).transfer(_receiver, amounts[0])
     
-    for i in range(1, N_COINS):
-        coin = CurveMeta(_pool).coins(i)
+    # Withdraw from base
+    for i in range(BASE_N_COINS):
+        min_amounts_base[i] = _min_amounts[MAX_COIN+i]
+    CurveBase(BASE_POOL).remove_liquidity(meta_received[1], min_amounts_base)
+
+    base_coins: address[BASE_N_COINS] = BASE_COINS
+    for i in range(1, N_ALL_COINS):
+        coin = base_coins[i-1]
         amounts[i] = ERC20(coin).balanceOf(self)
         ERC20(coin).transfer(_receiver, amounts[i])
 
@@ -189,87 +210,94 @@ def remove_liquidity_one_coin(
     @return Amount of underlying coin received
     """
     ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
-    coin: address = CurveMeta(_pool).coins(convert(i, uint256))
     coin_amount: uint256 = 0
-    coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, _receiver)
 
     if i == 0:
+        coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, _receiver)
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
         WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(coin_amount)
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
         ERC20(IBBTC_TOKEN).transfer(_receiver, after_ibbtc_balance - before_ibbtc_balance)
     else:
+        base_coins: address[BASE_N_COINS] = BASE_COINS
+        coin: address = base_coins[i - MAX_COIN]
+        # Withdraw a base pool coin
+        coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, MAX_COIN, 0, self)
+        CurveBase(BASE_POOL).remove_liquidity_one_coin(coin_amount, i-MAX_COIN, _min_amount)
+        coin_amount = ERC20(coin).balanceOf(self)
         ERC20(coin).transfer(_receiver, coin_amount)
 
     return coin_amount
 
-# not sure we need this 
-# @external
-# def remove_liquidity_imbalance(
-#     _pool: address,
-#     _amounts: uint256[N_ALL_COINS],
-#     _max_burn_amount: uint256,
-#     _receiver: address=msg.sender
-# ) -> uint256:
-#     """
-#     @notice Withdraw coins from the pool in an imbalanced amount
-#     @param _pool Address of the pool to deposit into
-#     @param _amounts List of amounts of underlying coins to withdraw
-#     @param _max_burn_amount Maximum amount of LP token to burn in the withdrawal
-#     @param _receiver Address that receives the LP tokens
-#     @return Actual amount of the LP token burned in the withdrawal
-#     """
-#     fee: uint256 = CurveBase(BASE_POOL).fee() * BASE_N_COINS / (4 * (BASE_N_COINS - 1))
-#     fee += fee * FEE_IMPRECISION / FEE_DENOMINATOR  # Overcharge to account for imprecision
+@external
+def remove_liquidity_imbalance(
+    _pool: address,
+    _amounts: uint256[N_ALL_COINS],
+    _max_burn_amount: uint256,
+    _receiver: address=msg.sender
+) -> uint256:
+    """
+    @notice Withdraw coins from the pool in an imbalanced amount
+    @param _pool Address of the pool to deposit into
+    @param _amounts List of amounts of underlying coins to withdraw
+    @param _max_burn_amount Maximum amount of LP token to burn in the withdrawal
+    @param _receiver Address that receives the LP tokens
+    @return Actual amount of the LP token burned in the withdrawal
+    """
+    fee: uint256 = CurveBase(BASE_POOL).fee() * BASE_N_COINS / (4 * (BASE_N_COINS - 1))
+    fee += fee * FEE_IMPRECISION / FEE_DENOMINATOR  # Overcharge to account for imprecision
 
-#     # Transfer the LP token in
-#     ERC20(_pool).transferFrom(msg.sender, self, _max_burn_amount)
+    # Transfer the LP token in
+    ERC20(_pool).transferFrom(msg.sender, self, _max_burn_amount)
 
-#     withdraw_base: bool = False
-#     amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
-#     amounts_meta: uint256[N_COINS] = empty(uint256[N_COINS])
+    withdraw_base: bool = False
+    amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
+    amounts_meta: uint256[N_COINS] = empty(uint256[N_COINS])
 
-#     # determine amounts to withdraw from base pool
-#     for i in range(BASE_N_COINS):
-#         amount: uint256 = _amounts[MAX_COIN + i]
-#         if amount != 0:
-#             amounts_base[i] = amount
-#             withdraw_base = True
+    # determine amounts to withdraw from base pool
+    for i in range(BASE_N_COINS):
+        amount: uint256 = _amounts[MAX_COIN + i]
+        if amount != 0:
+            amounts_base[i] = amount
+            withdraw_base = True
 
-#     # determine amounts to withdraw from metapool
-#     amounts_meta[0] = _amounts[0]
-#     if withdraw_base:
-#         amounts_meta[MAX_COIN] = CurveBase(BASE_POOL).calc_token_amount(amounts_base, False)
-#         amounts_meta[MAX_COIN] += amounts_meta[MAX_COIN] * fee / FEE_DENOMINATOR + 1
+    # determine amounts to withdraw from metapool
+    amounts_meta[0] = _amounts[0]
+    if withdraw_base:
+        amounts_meta[MAX_COIN] = CurveBase(BASE_POOL).calc_token_amount(amounts_base, False)
+        amounts_meta[MAX_COIN] += amounts_meta[MAX_COIN] * fee / FEE_DENOMINATOR + 1
 
-#     # withdraw from metapool and return the remaining LP tokens
-#     burn_amount: uint256 = CurveMeta(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
-#     ERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
+    # withdraw from metapool and return the remaining LP tokens
+    burn_amount: uint256 = CurveMeta(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
+    ERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
 
-#     # withdraw from base pool
-#     if withdraw_base:
-#         CurveBase(BASE_POOL).remove_liquidity_imbalance(amounts_base, amounts_meta[MAX_COIN])
-#         coin: address = BASE_LP_TOKEN
-#         leftover: uint256 = ERC20(coin).balanceOf(self)
+    # withdraw from base pool
+    if withdraw_base:
+        CurveBase(BASE_POOL).remove_liquidity_imbalance(amounts_base, amounts_meta[MAX_COIN])
+        coin: address = BASE_LP_TOKEN
+        leftover: uint256 = ERC20(coin).balanceOf(self)
 
-#         if leftover > 0:
-#             # if some base pool LP tokens remain, re-deposit them for the caller
-#             if not self.is_approved[coin][_pool]:
-#                 ERC20(coin).approve(_pool, MAX_UINT256)
-#                 self.is_approved[coin][_pool] = True
-#             burn_amount -= CurveMeta(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
+        if leftover > 0:
+            # if some base pool LP tokens remain, re-deposit them for the caller
+            if not self.is_approved[coin][_pool]:
+                ERC20(coin).approve(_pool, MAX_UINT256)
+                self.is_approved[coin][_pool] = True
+            burn_amount -= CurveMeta(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
 
-#         # transfer withdrawn base pool tokens to caller
-#         base_coins: address[BASE_N_COINS] = BASE_COINS
-#         for i in range(BASE_N_COINS):
-#             ERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
+        # transfer withdrawn base pool tokens to caller
+        base_coins: address[BASE_N_COINS] = BASE_COINS
+        for i in range(BASE_N_COINS):
+            ERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
 
-#     # transfer withdrawn metapool tokens to caller
-#     if _amounts[0] > 0:
-#         coin: address = CurveMeta(_pool).coins(0)
-#         ERC20(coin).transfer(_receiver, _amounts[0])
+    # transfer withdrawn metapool tokens to caller
+    if _amounts[0] > 0:
+        coin: address = CurveMeta(_pool).coins(0)
+        before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(_amounts[0])
+        after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
+        ERC20(coin).transfer(_receiver, after_ibbtc_balance - before_ibbtc_balance)
 
-#     return burn_amount
+    return burn_amount
 
 
 @view
@@ -282,13 +310,16 @@ def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) ->
     @param i Index value of the underlying coin to withdraw
     @return Amount of coin received
     """
-    
-    return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i) # NOTE: as ibbtc to wibbtc is 1:1 this becomes a simple return
+    if i < MAX_COIN:
+        return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i) # NOTE: as ibbtc to wibbtc is 1:1 this becomes a simple return
+    else:
+        _base_tokens: uint256 = CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, MAX_COIN)
+        return CurveBase(BASE_POOL).calc_withdraw_one_coin(_base_tokens, i-MAX_COIN)
 
 
 @view
 @external
-def calc_token_amount(_pool: address, _amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
+def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposit: bool) -> uint256:
     """
     @notice Calculate addition or reduction in token supply from a deposit or withdrawal
     @dev This calculation accounts for slippage, but not fees.
@@ -298,5 +329,14 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_COINS], _is_deposit: b
     @param _is_deposit set True for deposits, False for withdrawals
     @return Expected amount of LP tokens received
     """
+    meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
+    base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
 
-    return CurveMeta(_pool).calc_token_amount(_amounts, _is_deposit)
+    meta_amounts[0] = _amounts[0]
+    for i in range(BASE_N_COINS):
+        base_amounts[i] = _amounts[i + MAX_COIN]
+
+    base_tokens: uint256 = CurveBase(BASE_POOL).calc_token_amount(base_amounts, _is_deposit)
+    meta_amounts[MAX_COIN] = base_tokens
+
+    return CurveMeta(_pool).calc_token_amount(meta_amounts, _is_deposit)
