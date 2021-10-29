@@ -64,11 +64,11 @@ def test_add_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC,
 
     # initialize pool by depositing all coins
     amounts = [ibbtc.balanceOf(deployer) / 2, renbtc.balanceOf(deployer) / 2, renbtc.balanceOf(deployer) / 2, sBTC.balanceOf(deployer) / 2]
-    ibbtc_zap.add_liquidity(metapool, amounts, 0, {"from": deployer})
+    ibbtc_zap.add_liquidity(metapool.address, amounts, 0, {"from": deployer})
 
     # add only ibbtc liquidity
     amounts = [ibbtc.balanceOf(deployer) / 10, 0, 0, 0]
-    ibbtc_zap.add_liquidity(metapool, amounts, 0, {"from": deployer})
+    ibbtc_zap.add_liquidity(metapool.address, amounts, 0, {"from": deployer})
 
     for coin, amount in zip(coins, amounts):
         assert coin.balanceOf(ibbtc_zap) == 0
@@ -76,7 +76,7 @@ def test_add_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC,
     # check lp token balance
     assert metapool.balanceOf(deployer) > 0
 
-def test_remove_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, coins):
+def test_remove_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, coins):
 
     ibbtc.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
     renbtc.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
@@ -84,12 +84,12 @@ def test_remove_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, co
     sBTC.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
 
     # initialize pool by depositing all coins
-    amounts = [ibbtc.balanceOf(deployer) / 2, renbtc.balanceOf(deployer) / 2, renbtc.balanceOf(deployer) / 2, sBTC.balanceOf(deployer) / 2]
+    amounts = [ibbtc.balanceOf(deployer) // 2, renbtc.balanceOf(deployer) // 2, renbtc.balanceOf(deployer) // 2, sBTC.balanceOf(deployer) // 2]
     ibbtc_zap.add_liquidity(metapool, amounts, 0, {"from": deployer})
 
     balance = metapool.balanceOf(deployer)
     min_amounts = [0] * 4
-    ibbtc_zap.remove_liquidity(metapool, balance // 10, min_amounts, {"from": deployer})
+    ibbtc_zap.remove_liquidity(metapool.address, balance // 10, min_amounts, {"from": deployer})
 
 def test_remove_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, coins):
 
@@ -138,15 +138,15 @@ def ibbtc_zap(setup):
 
 @pytest.fixture
 def ibbtc():
-    return Contract.from_explorer("0xc4E15973E6fF2A35cC804c2CF9D2a1b817a8b40F")
+    return interface.ERC20("0xc4E15973E6fF2A35cC804c2CF9D2a1b817a8b40F")
 
 @pytest.fixture
 def renbtc():
-    return Contract.from_explorer("0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D")
+    return interface.ERC20("0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D")
 
 @pytest.fixture
 def wBTC():
-    return Contract.from_explorer("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599")
+    return interface.ERC20("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599")
 
 @pytest.fixture
 def wibBTC():
