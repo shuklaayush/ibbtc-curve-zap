@@ -1,11 +1,8 @@
-# @version 0.2.8
+# @version 0.2.16
 """
 @title "Zap" Depositer for permissionless ibBTC metapools
 @author tabish@badger.finance
-@license Copyright (c) Curve.Fi, 2021 - all rights reserved
 """
-
-# using this deposit zap users will be able to deposit ibbtc + whatever tokens are there in the metapool
 
 interface ERC20:
     def transfer(_receiver: address, _amount: uint256): nonpayable
@@ -38,10 +35,13 @@ interface WrappedIbbtcEth:
     def mint(_shares: uint256): nonpayable
     def burn(_shares: uint256): nonpayable
     def balanceOf(_user: address) -> uint256: view
+    def sharesOf(_user: address) -> uint256: view
+    def balanceToShares(_balance: uint256) -> uint256: view
+
 
 N_COINS: constant(int128) = 2 # wibbtc, crvRenWSBTC
 MAX_COIN: constant(int128) = N_COINS-1
-BASE_N_COINS: constant(int128) = 3
+BASE_N_COINS: constant(int128) = 3 # renBTC, wBTC, sBTC
 N_ALL_COINS: constant(int128) = N_COINS + BASE_N_COINS - 1
 
 BASE_POOL: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
@@ -72,6 +72,7 @@ def __init__():
     for coin in base_coins:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
 
+    ERC20(IBBTC_TOKEN).approve(IBBTC_WRAPPER_PROXY, MAX_UINT256)
 
 @external
 def add_liquidity(
@@ -96,12 +97,7 @@ def add_liquidity(
     # for ibbtc deposit
     if _deposit_amounts[0] != 0:
         coin: address = IBBTC_TOKEN
-                
-        # approve wibbtc for zap to use
-        if not self.is_approved[coin][IBBTC_WRAPPER_PROXY]:
-            ERC20(coin).approve(IBBTC_WRAPPER_PROXY, MAX_UINT256)
-            self.is_approved[coin][IBBTC_WRAPPER_PROXY] = True
-        
+
         ERC20(coin).transferFrom(msg.sender, self, _deposit_amounts[0])
         
         before_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
@@ -110,10 +106,10 @@ def add_liquidity(
         
         meta_amounts[0] = after_balance_wibbtc - before_balance_wibbtc
 
-        wibbtc_coin: address = WIBBTC_TOKEN
-        if not self.is_approved[wibbtc_coin][_pool]:
-            ERC20(wibbtc_coin).approve(_pool, MAX_UINT256)
-            self.is_approved[wibbtc_coin][_pool] = True
+        # approve wibbtc for _pool to use
+        if not self.is_approved[WIBBTC_TOKEN][_pool]:
+            ERC20(WIBBTC_TOKEN).approve(_pool, MAX_UINT256)
+            self.is_approved[WIBBTC_TOKEN][_pool] = True
 
     # for all coins(other than ibbtc)
     for i in range(1, N_ALL_COINS):
@@ -175,7 +171,7 @@ def remove_liquidity(
     coin: address = CurveMeta(_pool).coins(0)
     
     before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
-    WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(meta_received[0])
+    WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(meta_received[0]))
     after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
     
     amounts[0] = after_ibbtc_balance - before_ibbtc_balance
@@ -216,10 +212,12 @@ def remove_liquidity_one_coin(
     coin_amount: uint256 = 0
 
     if i == 0:
-        coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, _receiver)
+        coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, self)
+        
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
-        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(coin_amount)
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(coin_amount))
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
+        
         ERC20(IBBTC_TOKEN).transfer(_receiver, after_ibbtc_balance - before_ibbtc_balance)
     else:
         base_coins: address[BASE_N_COINS] = BASE_COINS
@@ -295,9 +293,11 @@ def remove_liquidity_imbalance(
     # transfer withdrawn metapool tokens to caller
     if _amounts[0] > 0:
         coin: address = CurveMeta(_pool).coins(0)
+        
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
-        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(_amounts[0])
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(_amounts[0]))
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
+        
         ERC20(coin).transfer(_receiver, after_ibbtc_balance - before_ibbtc_balance)
 
     return burn_amount
@@ -314,7 +314,7 @@ def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) ->
     @return Amount of coin received
     """
     if i < MAX_COIN:
-        return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i) # NOTE: as ibbtc to wibbtc is 1:1 this becomes a simple return
+        return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i)
     else:
         _base_tokens: uint256 = CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, MAX_COIN)
         return CurveBase(BASE_POOL).calc_withdraw_one_coin(_base_tokens, i-MAX_COIN)
@@ -350,20 +350,32 @@ def swap(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> 
     @notice swaps and wrap/unwrap coin
     """
     input_amount: uint256 = dx
+
     if i==0:
+        ERC20(IBBTC_TOKEN).transferFrom(msg.sender, self, dx)
+ 
         before_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
         WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).mint(dx)
         after_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
 
         input_amount = after_balance_wibbtc - before_balance_wibbtc
+    else:   
+        base_coins: address[BASE_N_COINS] = BASE_COINS
+        coin: address = base_coins[i - MAX_COIN]
+        ERC20(coin).transferFrom(msg.sender, self, dx)
+
+        if not self.is_approved[coin][_pool]:
+            ERC20(coin).approve(_pool, MAX_UINT256)
+            self.is_approved[coin][_pool] = True
 
     output_amount: uint256 = CurveMeta(_pool).exchange_underlying(i, j, input_amount, min_dy, self)
 
     if j==0:
-        balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
+        balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).sharesOf(self)
 
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
-        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(balance_wibbtc)
+        burn_amount: uint256 = balance_wibbtc
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(burn_amount)
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
 
         output_amount = after_ibbtc_balance - before_ibbtc_balance
@@ -371,7 +383,7 @@ def swap(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> 
         ERC20(IBBTC_TOKEN).transfer(msg.sender, output_amount)
     else:
         base_coins: address[BASE_N_COINS] = BASE_COINS
-        coin: address = base_coins[i - MAX_COIN]
+        coin: address = base_coins[j - MAX_COIN]
         ERC20(coin).transfer(msg.sender, output_amount)
 
     return output_amount
