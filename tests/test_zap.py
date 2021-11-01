@@ -10,6 +10,32 @@ console = Console()
 from dotmap import DotMap
 import pytest
 
+def test_zap_flow(deployer, rando, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC, lp_token):
+
+    initialize(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)
+
+    approve_rando(rando, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)
+
+    ibbtc.approve(rando, 9999999999999999999999, {"from": deployer})
+
+    balance_ibbtc_deployer = ibbtc.balanceOf(deployer)
+    ibbtc.transfer(rando, balance_ibbtc_deployer // 2, {"from": deployer})
+
+    balance_ibbtc_rando_before = ibbtc.balanceOf(rando)
+    balance_metapool_rando = metapool.balanceOf(rando)
+
+    # deposit ibbtc from rando
+    amounts = [balance_ibbtc_rando_before, 0, 0, 0]
+    ibbtc_zap.add_liquidity(metapool.address, amounts, 0, {"from": rando})
+
+    # remove liquidity in terms of ibbtc
+    ibbtc_zap.remove_liquidity_one_coin(metapool, metapool.balanceOf(rando), 0, 0, {"from": rando})
+
+    balance_ibbtc_rando_after = ibbtc.balanceOf(rando)
+
+    assert balance_ibbtc_rando_after >= balance_ibbtc_rando_before * 0.99
+
+
 # Test to add liquidity to metapool
 def test_add_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC, lp_token):
     
@@ -18,12 +44,12 @@ def test_add_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC,
     # add ibbtc liquidity
     amounts = [ibbtc.balanceOf(deployer) // 10, 0, 0, 0]
 
-    wibBTC_balance_before = wibBTC.sharesOf(metapool)
+    wibBTC_shares_before = wibBTC.sharesOf(metapool)
     ibbtc_zap.add_liquidity(metapool.address, amounts, 0, {"from": deployer})
-    wibBTC_balance_after = wibBTC.sharesOf(metapool)
+    wibBTC_shares_after = wibBTC.sharesOf(metapool)
 
-    # depositing ibbtc into curve pool, wibbtc balance of curve pool should increase propotionally to amount of ibbtc deposited
-    assert wibBTC_balance_after - wibBTC_balance_before >= amounts[0] * 0.99 # multiplying by 0.99 for slippage considerations
+    # depositing ibbtc into curve pool, wibbtc shares of curve pool should increase propotionally to amount of ibbtc shares deposited
+    assert wibBTC_shares_after - wibBTC_shares_before >= amounts[0] * 0.99 # multiplying by 0.99 for slippage considerations
 
     # add renbtc liquidity
     # when depositing renbtc/wBTC/sBTC the balance of lp token will increase
@@ -142,11 +168,11 @@ def test_calc_withdraw_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wB
     withdraw_amount_wBTC = ibbtc_zap.calc_withdraw_one_coin(metapool.address, amount, 2, {"from": deployer})
     withdraw_amount_sBTC = ibbtc_zap.calc_withdraw_one_coin(metapool.address, amount, 3, {"from": deployer})
 
-    before_ibbtc_balance = ibbtc.balanceOf(deployer)
+    before_ibbtc_shares = ibbtc.balanceOf(deployer)
     ibbtc_zap.remove_liquidity_one_coin(metapool, amount, 0, 0, {"from": deployer})
-    after_ibbtc_balance = ibbtc.balanceOf(deployer)
+    after_ibbtc_shares = ibbtc.balanceOf(deployer)
 
-    assert after_ibbtc_balance - before_ibbtc_balance >= withdraw_amount_ibbtc * 0.99
+    assert after_ibbtc_shares - before_ibbtc_shares >= withdraw_amount_ibbtc * 0.99
 
 #################### Setup ####################
 
@@ -232,6 +258,10 @@ def lp_token(metapool):
 def deployer():
     yield accounts[0]
 
+@pytest.fixture
+def rando():
+    yield accounts[1]
+
 def approve(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC):
     
     ibbtc.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
@@ -239,6 +269,15 @@ def approve(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC):
     wBTC.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
     sBTC.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
     metapool.approve(ibbtc_zap, 999999999999999999999999999999, {"from": deployer})
+
+def approve_rando(rando, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC):
+    
+    ibbtc.approve(ibbtc_zap, 999999999999999999999999999999, {"from": rando})
+    renbtc.approve(ibbtc_zap, 999999999999999999999999999999, {"from": rando})
+    wBTC.approve(ibbtc_zap, 999999999999999999999999999999, {"from": rando})
+    sBTC.approve(ibbtc_zap, 999999999999999999999999999999, {"from": rando})
+    metapool.approve(ibbtc_zap, 999999999999999999999999999999, {"from": rando})
+
 
 def initialize(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC):
     approve(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)

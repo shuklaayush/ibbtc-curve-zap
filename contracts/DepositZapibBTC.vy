@@ -100,9 +100,9 @@ def add_liquidity(
 
         ERC20(coin).transferFrom(msg.sender, self, _deposit_amounts[0])
         
-        before_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
+        before_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
         WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).mint(_deposit_amounts[0])
-        after_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
+        after_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
         
         meta_amounts[0] = after_balance_wibbtc - before_balance_wibbtc
 
@@ -314,7 +314,7 @@ def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) ->
     @return Amount of coin received
     """
     if i < MAX_COIN:
-        # we wibbtc is transferred it is transferred as shares therefore we get rebased ibbtc amount
+        # we get balance we convert it into ibbtc shares we will receive.
         return WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i))
     else:
         _base_tokens: uint256 = CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, MAX_COIN)
@@ -355,9 +355,9 @@ def swap(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> 
     if i==0:
         ERC20(IBBTC_TOKEN).transferFrom(msg.sender, self, dx)
  
-        before_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
+        before_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
         WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).mint(dx)
-        after_balance_wibbtc: uint256 = ERC20(WIBBTC_TOKEN).balanceOf(self)
+        after_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
 
         input_amount = after_balance_wibbtc - before_balance_wibbtc
     else:   
@@ -372,11 +372,9 @@ def swap(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> 
     output_amount: uint256 = CurveMeta(_pool).exchange_underlying(i, j, input_amount, min_dy, self)
 
     if j==0:
-        balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).sharesOf(self)
-
+        
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
-        burn_amount: uint256 = balance_wibbtc
-        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(burn_amount)
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).sharesOf(self))
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
 
         output_amount = after_ibbtc_balance - before_ibbtc_balance
