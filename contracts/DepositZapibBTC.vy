@@ -314,7 +314,8 @@ def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) ->
     @return Amount of coin received
     """
     if i < MAX_COIN:
-        return CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i)
+        # we wibbtc is transferred it is transferred as shares therefore we get rebased ibbtc amount
+        return WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, i))
     else:
         _base_tokens: uint256 = CurveMeta(_pool).calc_withdraw_one_coin(_token_amount, MAX_COIN)
         return CurveBase(BASE_POOL).calc_withdraw_one_coin(_base_tokens, i-MAX_COIN)

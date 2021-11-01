@@ -75,7 +75,7 @@ def test_remove_liquidity(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sB
 
 
 # Test to remove liquidity from metapool by removing a single coin
-def test_remove_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC, coins):
+def test_remove_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC):
 
     initialize(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)
 
@@ -101,7 +101,7 @@ def test_remove_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBT
 
 
 # Testing swap between different pairs
-def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, coins):
+def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
     
     initialize(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)
 
@@ -132,6 +132,21 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, coins):
 
     assert balance_renbtc_after_swap > balance_renbtc_before_swap
 
+# Testing calc_withdraw_one_coin
+def test_calc_withdraw_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC):
+    initialize(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)
+
+    amount = metapool.balanceOf(deployer) // 10
+    withdraw_amount_ibbtc = ibbtc_zap.calc_withdraw_one_coin(metapool.address, amount, 0, {"from": deployer})
+    withdraw_amount_renbtc = ibbtc_zap.calc_withdraw_one_coin(metapool.address, amount, 1, {"from": deployer})
+    withdraw_amount_wBTC = ibbtc_zap.calc_withdraw_one_coin(metapool.address, amount, 2, {"from": deployer})
+    withdraw_amount_sBTC = ibbtc_zap.calc_withdraw_one_coin(metapool.address, amount, 3, {"from": deployer})
+
+    before_ibbtc_balance = ibbtc.balanceOf(deployer)
+    ibbtc_zap.remove_liquidity_one_coin(metapool, amount, 0, 0, {"from": deployer})
+    after_ibbtc_balance = ibbtc.balanceOf(deployer)
+
+    assert after_ibbtc_balance - before_ibbtc_balance >= withdraw_amount_ibbtc * 0.99
 
 #################### Setup ####################
 
@@ -203,10 +218,6 @@ def wibBTC():
 @pytest.fixture
 def sBTC():
     return Contract("0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6")
-
-@pytest.fixture
-def coins(ibbtc, renbtc, wBTC, sBTC):
-    return [ibbtc, renbtc, wBTC, sBTC]
 
 @pytest.fixture
 def metapool(setup):
