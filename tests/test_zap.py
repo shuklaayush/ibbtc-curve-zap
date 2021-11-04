@@ -135,7 +135,7 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
     ibbtc_amount = ibbtc.balanceOf(deployer) // 10
 
     balance_wbtc_before_swap = wBTC.balanceOf(deployer)
-    ibbtc_zap.swap(metapool, 0, 2, ibbtc_amount, 0)
+    ibbtc_zap.exchange_underlying(metapool, 0, 2, ibbtc_amount, 0)
     balance_wbtc_after_swap = wBTC.balanceOf(deployer)
 
     assert balance_wbtc_after_swap > balance_wbtc_before_swap
@@ -144,7 +144,7 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
     wbtc_amount = wBTC.balanceOf(deployer) // 10
 
     balance_ibbtc_before_swap = ibbtc.balanceOf(deployer)
-    ibbtc_zap.swap(metapool, 2, 0, wbtc_amount, 0)
+    ibbtc_zap.exchange_underlying(metapool, 2, 0, wbtc_amount, 0)
     balance_ibbtc_after_swap = ibbtc.balanceOf(deployer)
 
     assert balance_ibbtc_after_swap > balance_ibbtc_before_swap
@@ -153,7 +153,7 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
     wbtc_amount = wBTC.balanceOf(deployer) // 10
 
     balance_renbtc_before_swap = renbtc.balanceOf(deployer)
-    ibbtc_zap.swap(metapool, 2, 1, wbtc_amount, 0)
+    ibbtc_zap.exchange_underlying(metapool, 2, 1, wbtc_amount, 0)
     balance_renbtc_after_swap = renbtc.balanceOf(deployer)
 
     assert balance_renbtc_after_swap > balance_renbtc_before_swap
@@ -162,10 +162,10 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
     ibbtc_amount = ibbtc.balanceOf(deployer) // 10
 
     balance_wbtc_before_swap = wBTC.balanceOf(deployer)
-    ibbtc_zap.swap(metapool, 0, 2, ibbtc_amount, 0)
+    ibbtc_zap.exchange_underlying(metapool, 0, 2, ibbtc_amount, 0)
     balance_wbtc_after_swap = wBTC.balanceOf(deployer)
 
-    ibbtc_zap.swap(metapool, 2, 0, balance_wbtc_after_swap - balance_wbtc_before_swap, 0)
+    ibbtc_zap.exchange_underlying(metapool, 2, 0, balance_wbtc_after_swap - balance_wbtc_before_swap, 0)
     balance_ibbtc_after_swap = ibbtc.balanceOf(deployer)
 
     assert balance_ibbtc_after_swap >= ibbtc_amount * 0.99

@@ -348,7 +348,7 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposi
     return CurveMeta(_pool).calc_token_amount(meta_amounts, _is_deposit)
 
 @external
-def swap(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
+def exchange_underlying(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
     """
     @notice swaps and wrap/unwrap coin
     """
