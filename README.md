@@ -8,4 +8,5 @@ The [DepositZapBTC.vy](https://github.com/curvefi/curve-factory/blob/master/cont
 - function `remove_liquidity_one_coin`: if i=0 ie. we are removing liquidity in terms of ibbtc then, the withdrawn wibbtc from curve metapool is unwrapped to ibbtc and transferred to user.
 - function `swap`: Swap function added which wraps/unwrap if we are swapping from/to ibbtc
 - function `calc_withdraw_one_coin`: if withdrawn coin is ibbtc (ie. i=0) it calculates the amount of ibbtc shares received
+- function `calc_token_amount`: changes ibbtc shares to wibbtc balance and then calculates addition or reduction in token supply from a deposit or withdrawal
 - function `remove_liquidity_imbalance`: if there is an imbalance, the amount of wibbtc received would be converted to ibbtc before transferring to the `msg.sender`
