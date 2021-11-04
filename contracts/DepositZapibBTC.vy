@@ -348,30 +348,30 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposi
     return CurveMeta(_pool).calc_token_amount(meta_amounts, _is_deposit)
 
 @external
-def exchange_underlying(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
+def exchange_underlying(_pool: address, i: int128, j: int128, _dx: uint256, _min_dy: uint256, _receiver: address = msg.sender) -> uint256:
     """
     @notice swaps and wrap/unwrap coin
     """
-    input_amount: uint256 = dx
+    input_amount: uint256 = _dx
 
     if i==0:
-        ERC20(IBBTC_TOKEN).transferFrom(msg.sender, self, dx)
+        ERC20(IBBTC_TOKEN).transferFrom(msg.sender, self, _dx)
  
         before_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
-        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).mint(dx)
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).mint(_dx)
         after_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
 
         input_amount = after_balance_wibbtc - before_balance_wibbtc
     else:   
         base_coins: address[BASE_N_COINS] = BASE_COINS
         coin: address = base_coins[i - MAX_COIN]
-        ERC20(coin).transferFrom(msg.sender, self, dx)
+        ERC20(coin).transferFrom(msg.sender, self, _dx)
 
         if not self.is_approved[coin][_pool]:
             ERC20(coin).approve(_pool, MAX_UINT256)
             self.is_approved[coin][_pool] = True
 
-    output_amount: uint256 = CurveMeta(_pool).exchange_underlying(i, j, input_amount, min_dy, self)
+    output_amount: uint256 = CurveMeta(_pool).exchange_underlying(i, j, input_amount, _min_dy, self)
 
     if j==0:
         
@@ -381,10 +381,10 @@ def exchange_underlying(_pool: address, i: int128, j: int128, dx: uint256, min_d
 
         output_amount = after_ibbtc_balance - before_ibbtc_balance
 
-        ERC20(IBBTC_TOKEN).transfer(msg.sender, output_amount)
+        ERC20(IBBTC_TOKEN).transfer(_receiver, output_amount)
     else:
         base_coins: address[BASE_N_COINS] = BASE_COINS
         coin: address = base_coins[j - MAX_COIN]
-        ERC20(coin).transfer(msg.sender, output_amount)
+        ERC20(coin).transfer(_receiver, output_amount)
 
     return output_amount
