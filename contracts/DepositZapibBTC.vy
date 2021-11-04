@@ -375,7 +375,7 @@ def swap(_pool: address, i: int128, j: int128, dx: uint256, min_dy: uint256) -> 
     if j==0:
         
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
-        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).sharesOf(self))
+        WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(output_amount))
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
 
         output_amount = after_ibbtc_balance - before_ibbtc_balance
