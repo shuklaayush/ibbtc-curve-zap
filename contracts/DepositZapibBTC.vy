@@ -354,7 +354,7 @@ def exchange_underlying(_pool: address, i: int128, j: int128, _dx: uint256, _min
     """
     input_amount: uint256 = _dx
 
-    if i==0:
+    if i == 0:
         ERC20(IBBTC_TOKEN).transferFrom(msg.sender, self, _dx)
  
         before_balance_wibbtc: uint256 = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceOf(self)
@@ -373,8 +373,7 @@ def exchange_underlying(_pool: address, i: int128, j: int128, _dx: uint256, _min
 
     output_amount: uint256 = CurveMeta(_pool).exchange_underlying(i, j, input_amount, _min_dy, self)
 
-    if j==0:
-        
+    if j == 0:
         before_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
         WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(output_amount))
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
