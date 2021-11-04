@@ -218,7 +218,8 @@ def remove_liquidity_one_coin(
         WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).burn(WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).balanceToShares(coin_amount))
         after_ibbtc_balance: uint256 = ERC20(IBBTC_TOKEN).balanceOf(self)
         
-        ERC20(IBBTC_TOKEN).transfer(_receiver, after_ibbtc_balance - before_ibbtc_balance)
+        coin_amount = after_ibbtc_balance - before_ibbtc_balance
+        ERC20(IBBTC_TOKEN).transfer(_receiver, coin_amount)
     else:
         base_coins: address[BASE_N_COINS] = BASE_COINS
         coin: address = base_coins[i - MAX_COIN]
