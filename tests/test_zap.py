@@ -158,6 +158,19 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
 
     assert balance_renbtc_after_swap > balance_renbtc_before_swap
 
+    # swap ibbtc -> wbtc -> ibbtc
+    ibbtc_amount = ibbtc.balanceOf(deployer) // 10
+
+    balance_wbtc_before_swap = wBTC.balanceOf(deployer)
+    ibbtc_zap.swap(metapool, 0, 2, ibbtc_amount, 0)
+    balance_wbtc_after_swap = wBTC.balanceOf(deployer)
+
+    ibbtc_zap.swap(metapool, 2, 0, balance_wbtc_after_swap - balance_wbtc_before_swap, 0)
+    balance_ibbtc_after_swap = ibbtc.balanceOf(deployer)
+
+    assert balance_ibbtc_after_swap >= ibbtc_amount * 0.99
+    assert False
+
 # Testing calc_withdraw_one_coin
 def test_calc_withdraw_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC):
     initialize(deployer, ibbtc_zap, metapool, ibbtc, renbtc, wBTC, sBTC)
