@@ -169,7 +169,6 @@ def test_swap(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC):
     balance_ibbtc_after_swap = ibbtc.balanceOf(deployer)
 
     assert balance_ibbtc_after_swap >= ibbtc_amount * 0.99
-    assert False
 
 # Testing calc_withdraw_one_coin
 def test_calc_withdraw_one_coin(deployer, metapool, ibbtc_zap, ibbtc, renbtc, wBTC, sBTC, wibBTC):

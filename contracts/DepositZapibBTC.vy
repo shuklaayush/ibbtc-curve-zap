@@ -37,6 +37,7 @@ interface WrappedIbbtcEth:
     def balanceOf(_user: address) -> uint256: view
     def sharesOf(_user: address) -> uint256: view
     def balanceToShares(_balance: uint256) -> uint256: view
+    def sharesToBalance(_balance: uint256) -> uint256: view
 
 
 N_COINS: constant(int128) = 2 # wibbtc, crvRenWSBTC
@@ -337,7 +338,7 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposi
     meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
     base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
 
-    meta_amounts[0] = _amounts[0]
+    meta_amounts[0] = WrappedIbbtcEth(IBBTC_WRAPPER_PROXY).sharesToBalance(_amounts[0])
     for i in range(BASE_N_COINS):
         base_amounts[i] = _amounts[i + MAX_COIN]
 
