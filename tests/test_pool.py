@@ -4,8 +4,8 @@ from conftest import MAX_UINT256, deployer
 
 
 @pytest.fixture(autouse=True)
-def ibbtc_pool(StableSwap, wibbtc, deployer):
-    yield StableSwap.deploy(
+def ibbtc_pool(MetaBTC, wibbtc, deployer):
+    yield MetaBTC.deploy(
         "ibBTC", "ibbtc", wibbtc, 1e18, 100, 4_000_000, {"from": deployer}
     )
 
