@@ -3,7 +3,7 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
-@notice sBTC metapool implementation contract
+@notice sBTC/ibBTC metapool implementation contract
 @dev ERC20 support for return True/revert, return True/False, return None
 """
 
@@ -27,6 +27,11 @@ interface Factory:
     def get_fee_receiver(_pool: address) -> address: view
     def admin() -> address: view
 
+interface Ibbtc:
+    def core() -> address: view
+
+interface Core:
+    def pricePerShare() -> uint256: view
 
 event Transfer:
     sender: indexed(address)
@@ -88,6 +93,10 @@ event StopRampA:
     A: uint256
     t: uint256
 
+event UpdateRateMultiplier:
+    rate_multiplier: uint256
+    t: uint256
+
 
 BASE_POOL: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
 BASE_COINS: constant(address[3]) = [
@@ -120,7 +129,8 @@ future_A: public(uint256)
 initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
-rate_multiplier: uint256
+rate_multiplier: public(uint256)
+rate_multiplier_update_time: public(uint256)
 
 name: public(String[64])
 symbol: public(String[32])
@@ -135,7 +145,6 @@ def __init__(
     _name: String[32],
     _symbol: String[10],
     _coin: address,
-    _rate_multiplier: uint256,
     _A: uint256,
     _fee: uint256
 ):
@@ -144,7 +153,6 @@ def __init__(
     @param _name Name of the new pool
     @param _symbol Token symbol
     @param _coin Addresses of ERC20 conracts of coins
-    @param _rate_multiplier Rate multiplier for `_coin` (10 ** (36 - decimals))
     @param _A Amplification coefficient multiplied by n ** (n - 1)
     @param _fee Fee to charge for exchanges
     """
@@ -153,7 +161,6 @@ def __init__(
 
     A: uint256 = _A * A_PRECISION
     self.coins = [_coin, 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3]
-    self.rate_multiplier = _rate_multiplier
     self.initial_A = A
     self.future_A = A
     self.fee = _fee
@@ -165,6 +172,13 @@ def __init__(
     for coin in BASE_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
 
+    # initialize rate_multiplier to pps
+    pps: uint256 = Core(Ibbtc(_coin).core()).pricePerShare()
+    self.rate_multiplier = pps
+    self.rate_multiplier_update_time = block.timestamp
+
+    # fire event to announce rate_multiplier initialization
+    log UpdateRateMultiplier(pps, block.timestamp)
     # fire a transfer event so block explorers identify the contract as an ERC20
     log Transfer(ZERO_ADDRESS, self, 0)
 
@@ -1123,3 +1137,20 @@ def withdraw_admin_fees():
         )
         if len(response) > 0:
             assert convert(response, bool)
+
+
+@external
+def update_rate_multiplier() -> uint256:
+    """
+    @notice Update rate multiplier of ibBTC to pricePerShare from ibBTC core
+    @return New rate multiplier of ibBTC
+    """
+    # get price per share from ibbtc core
+    pps: uint256 = Core(Ibbtc(self.coins[0]).core()).pricePerShare()
+
+    self.rate_multiplier = pps
+    self.rate_multiplier_update_time = block.timestamp
+
+    log UpdateRateMultiplier(pps, block.timestamp)
+
+    return pps
