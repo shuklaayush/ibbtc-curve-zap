@@ -54,11 +54,6 @@ def deployer(accounts):
 
 
 @pytest.fixture(autouse=True)
-def ibbtc_zap(DepositZapibBTC, deployer):
-    yield DepositZapibBTC.deploy({"from": deployer})
-
-
-@pytest.fixture(autouse=True)
 def get_tokens(deployer, router, weth, ibbtc, wbtc, sbtc_pool):
     # Get ibbtc
     router.swapETHForExactTokens(

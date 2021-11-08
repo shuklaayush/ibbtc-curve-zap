@@ -10,6 +10,11 @@ def ibbtc_pool(Contract):
 
 
 @pytest.fixture(autouse=True)
+def ibbtc_zap(DepositZapibBTC, deployer):
+    yield DepositZapibBTC.deploy({"from": deployer})
+
+
+@pytest.fixture(autouse=True)
 def seed_pool(wibbtc, ibbtc_zap, ibbtc_pool, deployer, renbtc, wbtc, sbtc):
     ibbtc_pool.approve(ibbtc_zap, MAX_UINT256, {"from": deployer})
 
